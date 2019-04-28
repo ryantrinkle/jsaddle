@@ -65,7 +65,7 @@ import GI.Gtk
         widgetGetToplevel, widgetShowAll, onWidgetDestroy,
         mainQuit)
 import GI.Gio (noCancellable)
-import GI.JavaScriptCore (Value(..), GlobalContext(..))
+import GI.JavaScriptCore (Value(..), Context(..), valueGetContext)
 import GI.WebKit2
        (scriptDialogPromptSetText, scriptDialogPromptGetDefaultText,
         scriptDialogGetMessage, scriptDialogGetDialogType,
@@ -74,7 +74,7 @@ import GI.WebKit2
         setSettingsEnableJavascript, webViewNewWithUserContentManager,
         userContentManagerNew,
         userContentManagerRegisterScriptMessageHandler,
-        javascriptResultGetValue, javascriptResultGetGlobalContext,
+        javascriptResultGetJsValue,
         webViewGetUserContentManager,
         mk_UserContentManagerScriptMessageReceivedCallback,
         wrap_UserContentManagerScriptMessageReceivedCallback,
@@ -109,8 +109,8 @@ postGUIAsync :: IO () -> IO ()
 postGUIAsync action =
   void . idleAdd PRIORITY_DEFAULT $ action >> return False
 
-withJSContextRef :: GlobalContext -> (JSContextRef -> IO a) -> IO a
-withJSContextRef (GlobalContext ctx) f = withManagedPtr ctx (f . castPtr)
+withJSContextRef :: Context -> (JSContextRef -> IO a) -> IO a
+withJSContextRef (Context ctx) f = withManagedPtr ctx (f . castPtr)
 
 withJSValueRef :: Value -> (JSValueRef -> IO a) -> IO a
 withJSValueRef (Value ptr) f = withManagedPtr ptr (f . castPtr)
@@ -177,8 +177,8 @@ addJSaddleHandler :: WebView -> (Results -> IO ()) -> (Results -> IO Batch) -> I
 addJSaddleHandler webView processResult syncResults = do
     manager <- webViewGetUserContentManager webView
     _ <- onUserContentManagerScriptMessageReceived manager $ \result -> do
-        ctx <- javascriptResultGetGlobalContext result
-        arg <- javascriptResultGetValue result
+        arg <- javascriptResultGetJsValue result
+        ctx <- valueGetContext arg
         bs <- withJSContextRef ctx $ \ctxRef ->
             withJSValueRef arg $ \argRef ->
                 encodeUtf8 <$> valueToText ctxRef argRef
